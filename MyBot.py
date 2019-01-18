@@ -70,6 +70,9 @@ while True:
             logging.info("I must return!")
                     
         #ship is collecting halite
+
+        #watched tutorial by the youtube channel sentdex to learn how to avoid collisions
+        #and find max halite surrounding ship: https://www.youtube.com/channel/UCfzlCWGWYyIQ0aLC5w48gBQ
         else:
 
             #getting coordinates around ship

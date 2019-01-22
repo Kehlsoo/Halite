@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # Python 3.6
 
@@ -17,6 +18,8 @@ import random
 #   (print statements) are reserved for the engine-bot communication.
 import logging
 
+count = 0
+
 """ <<<Game Begin>>> """
 
 # This game object contains the initial game state.
@@ -24,7 +27,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("MyPythonBot")
+game.ready("HighBots")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -32,6 +35,7 @@ logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 ship_status = {}
 
 """ <<<Game Loop>>> """
+
 
 while True:
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
@@ -59,17 +63,65 @@ while True:
     for ship in me.get_ships():
         positions.append(ship.position)
 
+        # set status of the current ship when created
+        if ship.id not in ship_status:
+            ship_status[ship.id] = "exploring"
+
     # iterating through ships to find a safe move
     for ship in me.get_ships():
-        logging.info("Ship {} has {} halite.".format(
-            ship.id, ship.halite_amount))
+        logging.info("Ship {} has {} halite with status {} and number of dropoffs {}.".format(
+            ship.id, ship.halite_amount, ship_status[ship.id], len(me.get_dropoffs())))
+
+        # make the ship a drop off
+        myDist = game_map.calculate_distance(
+            ship.position, me.shipyard.position)
+
+        #suicide bots run into the port
+        if game.turn_number > 480:
+            if ship.position == me.shipyard.position:
+                command_queue.append(ship.stay_still())
+            elif myDist <2:
+                myUnSafe = game_map.get_unsafe_moves(ship.position, me.shipyard.position)
+                move = Direction.convert(myUnSafe[0])
+                command_queue.append(ship.move(move))
+                logging.info("unSafe moves: {}".format(move))
+
+            else:
+                move = game_map.naive_navigate(ship, me.shipyard.position)
+                command_queue.append(ship.move(move))
+
+
+        elif game.turn_number <= 330 and count == 0 and me.halite_amount > 6000 and myDist > 15 and game_map[ship.position].halite_amount > 500:
+            count = count + 1
+            logging.info("ship {} is creating drop off @ {} with distance {}".format(
+                ship.id, ship.position, myDist))
+            command_queue.append(ship.make_dropoff())
 
         # ship is full, go to dropoff
-        if ship.halite_amount >= constants.MAX_HALITE / 4:
-            move = game_map.naive_navigate(ship, me.shipyard.position)
+        elif (game.turn_number < 100 and ship.halite_amount >= constants.MAX_HALITE / 2.5) or (game.turn_number > 99 and ship.halite_amount >= constants.MAX_HALITE / 1.5):
+            myDropPos = ""
+            myDistDrop = 100000
+            myDistYard = game_map.calculate_distance(
+                ship.position, me.shipyard.position) + 15
+
+            for myDrop in me.get_dropoffs():
+                myDropPos = myDrop.position
+                myDistDrop = game_map.calculate_distance(
+                    ship.position, myDrop.position)
+
+            if(myDistDrop <= myDistYard):
+                move = game_map.naive_navigate(ship, myDropPos)
+                logging.info("I must return to drop!")
+
+            else:
+                move = game_map.naive_navigate(ship, me.shipyard.position)
+                logging.info("I must return to yard!")
+
             choices.append(map_coords[move])  # to keep track of moves
             command_queue.append(ship.move(move))
-            logging.info("I must return!")
+
+            # update ship status to return to shipyard
+            ship_status[ship.id] = "return"
 
         # ship is collecting halite
 
@@ -84,11 +136,11 @@ while True:
             temp_positions = positions
             temp_positions.remove(ship.position)
 
-            # position as map coordinate
-            map_coords = {}
-
             # position with most hilite
             max_hiLoc = {}
+
+            # position as map coordinate
+            map_coords = {}
 
             # adding each coordinate available around the current ship to map coordinates dictionary
             for n, direction in enumerate(directional_order):
@@ -103,9 +155,10 @@ while True:
                     max_hiLoc[direction] = halite_amount
 
             # moves the ship to the cell available with most halite
-            #   as long as max_hiLoc is not empty should fix
-            #      deadlock issue
+            #   as long as max_hiLoc is not empty
             if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 and max_hiLoc != {}:
+                logging.info("max_hiLoc get {} ".format(
+                    max_hiLoc))
                 go_to = max(max_hiLoc, key=max_hiLoc.get)
                 choices.append(map_coords[go_to])
                 command_queue.append(
@@ -116,46 +169,12 @@ while True:
                 choices.append(map_coords[Direction.Still])
                 command_queue.append(ship.stay_still())
 
+                # update ship status to stay
+                ship_status[ship.id] = "stay"
+
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if game.turn_number <= 250 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
 
     game.end_turn(command_queue)
-
-
-########## original given code ######################
-
-#    for ship in me.get_ships():
-#        logging.info("Ship {} has {} halite.".format(ship.id, ship.halite_amount))
-#        if ship.id not in ship_status:
-#            ship_status[ship.id] = "exploring"
-#
-#        if ship_status[ship.id] == "returning":
-#            if ship.position == me.shipyard.position:
-#                ship_status[ship.id] = "exploring"
-#            else:
-#                move = game_map.naive_navigate(ship, me.shipyard.position)
-#                command_queue.append(ship.move(move))
-#                continue
-#        elif ship.halite_amount >= constants.MAX_HALITE / 4:
-#            ship_status[ship.id] = "returning"
-#
-#        # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
-#        #   Else, collect halite.
-#        if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
-#            command_queue.append(
-#                ship.move(
-#                    random.choice([ Direction.North, Direction.South, Direction.East, Direction.West ])))
-#        else:
-#            command_queue.append(ship.stay_still())
-
-    # If the game is in the first 200 turns and you have enough halite, spawn a ship.
-    # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-#    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
-#        command_queue.append(me.shipyard.spawn())
-
-#    # Send your moves back to the game environment, ending this turn.
-#    game.end_turn(command_queue)
-
-    #############################################################

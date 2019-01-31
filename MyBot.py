@@ -103,8 +103,8 @@ while True:
 
         # ship is full at the beggining of the game at 400 halite 
         ## while at the end of the game the ship is full at 666 halite
-        elif (game.turn_number < 100 and ship.halite_amount >= constants.MAX_HALITE / 2.5) or 
-        (game.turn_number > 99 and ship.halite_amount >= constants.MAX_HALITE / 1.5):
+        elif ((game.turn_number < 100 and ship.halite_amount >= constants.MAX_HALITE / 2.5) or 
+        (game.turn_number > 99 and ship.halite_amount >= constants.MAX_HALITE / 1.5)):
             myDropPos = ""
             myDistDrop = 100000
             ## adding 15 to the shipyard distance is meant to rebase the player so the 

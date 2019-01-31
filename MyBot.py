@@ -76,8 +76,9 @@ while True:
         myDist = game_map.calculate_distance(
             ship.position, me.shipyard.position)
 
-        #suicide bots run into the port
-        if game.turn_number > 480:
+        # suicide bots run into the shipyard in the last to deposit halite
+        ## This is the fastest way to get all ships to empty cargo at once
+        if game.turn_number > 470:
             if ship.position == me.shipyard.position:
                 command_queue.append(ship.stay_still())
             elif myDist <2:
@@ -90,17 +91,24 @@ while True:
                 move = game_map.naive_navigate(ship, me.shipyard.position)
                 command_queue.append(ship.move(move))
 
-
-        elif game.turn_number <= 330 and count == 0 and me.halite_amount > 6000 and myDist > 15 and game_map[ship.position].halite_amount > 500:
+        # turn a ship into a dropoff when game is not too far in 
+        # AND the ship is far enough away from the shipyard
+        # AND the play can afford to spend 4000 on a dropoff
+        elif (game.turn_number <= 330 and count == 0 and me.halite_amount > 6000 and myDist > 15 
+        and game_map[ship.position].halite_amount > 500):
             count = count + 1
             logging.info("ship {} is creating drop off @ {} with distance {}".format(
                 ship.id, ship.position, myDist))
             command_queue.append(ship.make_dropoff())
 
-        # ship is full, go to dropoff
-        elif (game.turn_number < 100 and ship.halite_amount >= constants.MAX_HALITE / 2.5) or (game.turn_number > 99 and ship.halite_amount >= constants.MAX_HALITE / 1.5):
+        # ship is full at the beggining of the game at 400 halite 
+        ## while at the end of the game the ship is full at 666 halite
+        elif (game.turn_number < 100 and ship.halite_amount >= constants.MAX_HALITE / 2.5) or 
+        (game.turn_number > 99 and ship.halite_amount >= constants.MAX_HALITE / 1.5):
             myDropPos = ""
             myDistDrop = 100000
+            ## adding 15 to the shipyard distance is meant to rebase the player so the 
+            ### full ship favor the dropoff and will reloacted there
             myDistYard = game_map.calculate_distance(
                 ship.position, me.shipyard.position) + 15
 
@@ -108,7 +116,7 @@ while True:
                 myDropPos = myDrop.position
                 myDistDrop = game_map.calculate_distance(
                     ship.position, myDrop.position)
-
+            
             if(myDistDrop <= myDistYard):
                 move = game_map.naive_navigate(ship, myDropPos)
                 logging.info("I must return to drop!")
@@ -174,7 +182,8 @@ while True:
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if game.turn_number <= 250 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if (game.turn_number <= 250 and me.halite_amount >= constants.SHIP_COST and 
+    not game_map[me.shipyard].is_occupied):
         command_queue.append(me.shipyard.spawn())
 
     game.end_turn(command_queue)
